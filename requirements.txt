@@ -1,0 +1,6 @@
+requests>=2.31
+pandas>=2.0
+pytrends>=4.9
+urllib3<2  # pytrends still passes Retry(method_whitelist=...), removed in urllib3 v2
+streamlit>=1.35
+plotly>=5.20
