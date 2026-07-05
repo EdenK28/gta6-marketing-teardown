@@ -2,7 +2,11 @@ name: Daily data collection
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # 06:00 UTC daily
+    # GitHub Actions cron is UTC-only and has no DST awareness, so we fire
+    # twice a day (covering both Israel Standard and Daylight Time) and let
+    # the guard step below skip the trigger that doesn't land on 10:00 IL time.
+    - cron: "0 7 * * *"   # 10:00 Israel time during IDT (UTC+3, ~late Mar-late Oct)
+    - cron: "0 8 * * *"   # 10:00 Israel time during IST (UTC+2, ~late Oct-late Mar)
   workflow_dispatch:        # manual trigger button in the Actions tab
 
 permissions:
@@ -12,27 +16,42 @@ jobs:
   collect:
     runs-on: ubuntu-latest
     steps:
+      - name: Only proceed at 10:00 Israel time
+        run: |
+          hour=$(TZ='Asia/Jerusalem' date +%H)
+          if [ "$hour" != "10" ]; then
+            echo "Current Israel-time hour is $hour, not 10 — skipping this trigger."
+            echo "SKIP=true" >> "$GITHUB_ENV"
+          fi
+
       - uses: actions/checkout@v4
+        if: env.SKIP != 'true'
 
       - uses: actions/setup-python@v5
+        if: env.SKIP != 'true'
         with:
           python-version: "3.12"
 
       - run: pip install -r requirements.txt
+        if: env.SKIP != 'true'
 
       - name: Collect mentions (Reddit + HN)
+        if: env.SKIP != 'true'
         run: python src/collect_mentions.py
         continue-on-error: true
 
       - name: Collect Wikipedia pageviews
+        if: env.SKIP != 'true'
         run: python src/collect_wikipedia.py
         continue-on-error: true
 
       - name: Collect Google Trends
+        if: env.SKIP != 'true'
         run: python src/collect_trends.py
         continue-on-error: true
 
       - name: Commit updated data
+        if: env.SKIP != 'true'
         run: |
           git config user.name "data-bot"
           git config user.email "actions@github.com"
